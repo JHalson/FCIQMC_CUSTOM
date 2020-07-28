@@ -39,9 +39,9 @@ for ind, pair in enumerate(pairs):
     H_U[ind] = sum( [pair[0][i]*pair[1][i] for i in range(len(pair))])
 
 
-H_U.reshape(len(states), len(states))
+H_U = H_U.reshape(len(states), len(states))
 #H += U*H_U
 
-print(H_U)
+print(H_U.shape)
 
 
