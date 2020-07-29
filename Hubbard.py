@@ -2,7 +2,7 @@ from functools import reduce
 import numpy as np
 
 class Hubbard:
-    def __init__(self, nsites, t, U, nelec=None, periodic=True):
+    def __init__(self, nsites, t, U, nelec=None, periodic=False):
         self.nsites=nsites
         self.nelec = nelec
         self.periodic = periodic
@@ -70,14 +70,15 @@ class Hubbard:
             # t-term
             H_t = 0
             for spin in zip(sep1,sep2):
+                spin1 = self.bstring(spin[0])  # state 1 spin for this channel
+                spin2 = self.bstring(spin[1])  # state 2
                 for pos in range(self.nsites-1):
-                    spin1 = self.bstring(spin[0])
-                    spin2 = self.bstring(spin[1])
                     if spin1[pos] == spin2[pos+1]:
                         H_t += 1
-                if self.periodic and spin1[0] != spin2[-1]:
+                if self.periodic and (spin1[0] != spin2[-1]):
                     H_t += 1
             if H_t > 1:
+                # only one hopping permitted
                 return 0
             else:
                 return -self.t*H_t
@@ -86,27 +87,46 @@ class Hubbard:
         # explicitly construct the Hamiltonian matrix
 
         if not self.matrix:
-            matrix = np.zeros((self.size, self.size))
+            self.matrix = np.zeros((self.size, self.size))
             for i in range(self.size):
                 state1 = self.index_table[i]
                 for j in range(i+1):
                     state2 = self.index_table[j]
-                    matrix[i,j] = self.calc_matrix_element(state1, state2)
-                    matrix[j,i] = matrix[i,j]
-            self.matrix = matrix
+                    self.matrix[i,j] = self.calc_matrix_element(state1, state2)
+                    self.matrix[j,i] = self.matrix[i,j]
         return self.matrix
 
     def get_exact_energy(self):
-        pass
+        self.build_matrix()
+        return np.linalg.eigh(self.matrix)
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
 
-    H = Hubbard(nsites=2,t=1,U=1.2121212,nelec=2)
+    t=1
+    nsites=5
 
-    H.print_index_table()
+    U_data = np.linspace(0.1,10)
+    E_data = []
+    for i, U in enumerate(U_data):
+        H = Hubbard(nsites=nsites,t=t,U=U,nelec=nsites)
+        E_data.append(H.get_exact_energy()[0])
 
-    print(H.build_matrix())
+    E_data = np.array(E_data)
+    for band in range(E_data.shape[1]):
+        plt.plot(U_data,E_data[:,band])
 
-    print(H.matrix[17,18])
+    if nsites == 2:
+        plt.plot(U_data, U_data, ls="--", label=r"Exact E_2")
+        plt.plot(U_data, [0]*len(U_data), ls="--", label=r"Exact E_1")
+        plt.plot(U_data, U_data/2 + np.sqrt((U_data/2)**2 + 4*t**2), ls="--", label=r"Exact E_3")
+        plt.plot(U_data, U_data / 2 - np.sqrt((U_data / 2) ** 2 + 4 * t ** 2), ls="--", label=r"Exact E_0")
+        plt.legend()
+
+    plt.ylabel('Energy')
+    plt.xlabel('U/t')
+    plt.show()
+
+
 
