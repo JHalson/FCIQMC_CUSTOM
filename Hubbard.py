@@ -75,7 +75,7 @@ class Hubbard:
                 for pos in range(self.nsites-1):
                     if spin1[pos] == spin2[pos+1]:
                         H_t += 1
-                if self.periodic and (spin1[0] != spin2[-1]):
+                if self.periodic and (spin1[0] == spin2[-1]):
                     H_t += 1
             if H_t > 1:
                 # only one hopping permitted
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     t=1
-    nsites=5
+    nsites=2
 
     U_data = np.linspace(0.1,10)
     E_data = []
