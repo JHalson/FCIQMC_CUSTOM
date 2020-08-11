@@ -8,7 +8,8 @@ class Hubbard:
         self.periodic = periodic
         self.t = t
         self.U = U
-        self.matrix = None
+        self._matrix = None
+        self.matrix = lambda : self.build_matrix()
         self.check_sanity()
         self._select_all = reduce(lambda a, b: 2 ** a + b, range(self.nsites))
         self._select_down = self._select_all - reduce(lambda a, b: 2 ** a + b, range(self.nsites // 2))
@@ -32,7 +33,7 @@ class Hubbard:
                 continue
             else:
                 configs.append(config)
-        return {i : configs[i] for i in range(len(configs))}
+        return {i : j for i, j in enumerate(configs)}
 
     def print_index_table(self):
         for ind, config in self.index_table.items():
@@ -75,30 +76,33 @@ class Hubbard:
                 for pos in range(self.nsites-1):
                     if spin1[pos] == spin2[pos+1]:
                         H_t += 1
+                        if H_t > 1:
+                            # only one hopping permitted
+                            return 0
                 if self.periodic and (spin1[0] == spin2[-1]):
                     H_t += 1
-            if H_t > 1:
-                # only one hopping permitted
-                return 0
             else:
                 return -self.t*H_t
 
     def build_matrix(self):
         # explicitly construct the Hamiltonian matrix
 
-        if not self.matrix:
-            self.matrix = np.zeros((self.size, self.size))
+        if self._matrix is None:
+            self._matrix = np.zeros((self.size, self.size))
             for i in range(self.size):
                 state1 = self.index_table[i]
                 for j in range(i+1):
                     state2 = self.index_table[j]
-                    self.matrix[i,j] = self.calc_matrix_element(state1, state2)
-                    self.matrix[j,i] = self.matrix[i,j]
-        return self.matrix
+                    self._matrix[i,j] = self.calc_matrix_element(state1, state2)
+                    self._matrix[j,i] = self._matrix[i,j]
+        self.matrix = self._matrix
+        return self._matrix
 
     def get_exact_energy(self):
-        self.build_matrix()
-        return np.linalg.eigh(self.matrix)
+        e, v = np.linalg.eig(self.matrix)
+        es = np.argsort(e)
+        return e[es], v[es]
+
 
 
 if __name__ == "__main__":
