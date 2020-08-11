@@ -7,10 +7,9 @@ from pyscf import fci, gto, scf, ao2mo
 from Hubbard import Hubbard
 
 def test_pyscf(U=2, norb=4):
+    nelec = norb
     n_alpha = norb // 2
-    n_beta = norb // 2
-    nelec = n_alpha + n_beta
-    U = 2.0
+    n_beta = nelec - n_alpha
 
     # Define 1D Hubbard hamiltonian
     h1 = numpy.zeros((norb,norb))
@@ -46,6 +45,8 @@ def test_pyscf(U=2, norb=4):
     cisolver.verbose = 5
     e, fcivec = cisolver.kernel(h1, eri, norb, nelec)
     print('FCI Energy is {}'.format(e))
+    from pyscf.tools.fcidump import from_integrals
+    from_integrals('FCIDUMP.PySCF', h1, eri, norb, nelec)
 
     # OPTIONAL: Perform a mean-field hartree-fock calculation, by overwriting some internal objects
     mol = gto.M(verbose=3)
@@ -84,11 +85,15 @@ def write_fcidump(U, norb, nelec=None, filename="FCIDUMP"):
         f.write("0 0 0 0 0\n")
 
         for i in range(1,norb):
-            f.write("{} {} 0 0 {}\n".format(i, i+1, -1))
-            f.write("{} {} 0 0 {}\n".format(i+1, i, -1))
-            f.write("{} {} {} {} {}\n".format(i, i, i, i, U))
+            f.write("{} {} {} 0 0 \n".format(-1, i, i+1))
+            f.write("{} {} {} 0 0 \n".format(-1, i + 1, i))
+        for i in range(1, norb+1):
+            f.write("{} {} {} {} {}\n".format(U, i, i, i, i))
 
 
-test_pyscf()
-test_exact_diag()
-test_fciqmc()
+U=2
+norb = 3
+
+test_pyscf(U=U, norb=norb)
+test_exact_diag(U=U, norb=norb)
+test_fciqmc(U=U, norb=norb)

@@ -99,7 +99,7 @@ class Hubbard:
         return self._matrix
 
     def get_exact_energy(self):
-        e, v = np.linalg.eig(self.matrix)
+        e, v = np.linalg.eig(self.build_matrix())
         es = np.argsort(e)
         return e[es], v[es]
 
