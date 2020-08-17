@@ -2,24 +2,33 @@ from functools import reduce
 import numpy as np
 
 class Hubbard:
-    def __init__(self, nsites, t, U, nelec=None, periodic=False):
+    def __init__(self, nsites, t, U, nelec=None, spin=None, periodic=False):
         self.nsites=nsites
         self.nelec = nelec
         self.periodic = periodic
+        self.spin = spin
         self.t = t
         self.U = U
         self._matrix = None
-        self.matrix = lambda : self.build_matrix()
-        self.check_sanity()
-        self._select_all = reduce(lambda a, b: 2 ** a + b, range(self.nsites))
-        self._select_down = self._select_all - reduce(lambda a, b: 2 ** a + b, range(self.nsites // 2))
-        self._select_up = self._select_all - self._select_down
+        self.exclude_middle = self.make_exclude_middle()
         self.index_table = self.make_index_table()
         self.size = len(self.index_table)
+        self.matrix = lambda: self.build_matrix()
+        self.check_sanity()
+
+    def make_exclude_middle(self):
+        # creates a number that on bitwise "and" will deselect the middle two bits, for use with the
+        # matrix elements xor algorithm to ensure the 'swapped pair' is not the middle two.
+        selection = "1" * (self.nelec - 1)
+        selection = selection + "00" + selection
+        selection = int(selection, 2)
+        return selection
 
     def check_sanity(self):
         if self.nelec:
             assert self.nelec <= self.nsites * 2, "overfull lattice"
+        if self._matrix is not None:
+            assert np.allclose(np.conj(self._matrix.T), self._matrix), "non-hermitian matrix"
 
     def bstring(self, number, dualchannel=False):
         # string containing bit representation with number of leading zeros approrpiate to system
@@ -30,9 +39,15 @@ class Hubbard:
         configs = []
         for config in range(2**(self.nsites*2)):
             if self.nelec and self.bstring(config, True).count('1') != self.nelec:
+                # electron number is conserved
                 continue
-            else:
-                configs.append(config)
+            if self.spin is not None:
+                # check spin conserved
+                spins = self.separate_spins(config)
+                spin = -self.bstring(spins[0]).count('1') + self.bstring(spins[1]).count('1')
+                if spin != self.spin:
+                    continue
+            configs.append(config)
         return {i : j for i, j in enumerate(configs)}
 
     def print_index_table(self):
@@ -66,23 +81,23 @@ class Hubbard:
 
         if state1 == state2:
             # U-term
-            return self.U*bin(sep1[0] & sep1[1]).count('1')
+            return self.U*self.bstring(sep1[0] & sep1[1]).count('1')
         else:
             # t-term
             H_t = 0
-            for spin in zip(sep1,sep2):
-                spin1 = self.bstring(spin[0])  # state 1 spin for this channel
-                spin2 = self.bstring(spin[1])  # state 2
-                for pos in range(self.nsites-1):
-                    if spin1[pos] == spin2[pos+1]:
-                        H_t += 1
-                        if H_t > 1:
-                            # only one hopping permitted
-                            return 0
-                if self.periodic and (spin1[0] == spin2[-1]):
-                    H_t += 1
-            else:
-                return -self.t*H_t
+
+            # bitwise xor to identify differing elements
+            xor = state2 ^ state1
+            xor_str = self.bstring(xor, True)
+            if ("11" in xor_str) and (sum(int(i) for i in xor_str) == 2):
+                # ensure the differing indices are in a pair, and there is only one such pair
+                if self.exclude_middle & xor != 0:
+                    # make sure it's not the middle indices that got swapped
+                    # since those don't indicate adjacent sites, but different spins on the first and last site
+                    return -self.t
+        return 0
+
+
 
     def build_matrix(self):
         # explicitly construct the Hamiltonian matrix
@@ -96,17 +111,28 @@ class Hubbard:
                     self._matrix[i,j] = self.calc_matrix_element(state1, state2)
                     self._matrix[j,i] = self._matrix[i,j]
         self.matrix = self._matrix
+        self.check_sanity()
         return self._matrix
 
     def get_exact_energy(self):
-        e, v = np.linalg.eig(self.build_matrix())
-        es = np.argsort(e)
-        return e[es], v[es]
+        return np.linalg.eigh(self.build_matrix())
 
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+
+    H = Hubbard(nsites=4, t=1, U=2, nelec=4)
+    assert H.calc_matrix_element(0b10100011, 0b01100011) == -1
+    assert H.calc_matrix_element(0b11001010, 0b11001001) == -1
+    assert H.calc_matrix_element(0b10011010, 0b10010110) == -1
+    assert H.calc_matrix_element(0b10011010, 0b10010110) == -1
+    assert H.calc_matrix_element(0b00111100, 0b00111010) == -1
+    assert H.calc_matrix_element(0b10101001, 0b10011010) == 0
+    assert H.calc_matrix_element(0b00111100, 0b00111100) == 0
+    assert H.calc_matrix_element(0b10010110, 0b10011001) == 0
+    assert H.calc_matrix_element(0b10001000, 0b10001001) == 0
+    assert H.calc_matrix_element(0b11110110, 0b11110110) == 4
 
     t=1
     nsites=2

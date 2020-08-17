@@ -25,8 +25,8 @@ def main(filename="FCIDUMP"):
 
     for sim_stats.iter_curr in range(sim_params.max_iter):
 
-        spawned_walkers = {}    # A dictionary to hold the spawned walkers of each iteration
-        sim_stats.nw = 0.0      # Recompute number of walkers each iteration
+        spawned_walkers = {}  # A dictionary to hold the spawned walkers of each iteration. With the initiator, this now takes a value which is a tuple of the weight, and the flag to indicate whether it came from an initiator determinant or not.
+        sim_stats.nw = 0.0  # Recompute number of walkers each iteration
         sim_stats.ref_weight = 0.0
         sim_stats.nocc_dets = 0
 
@@ -34,8 +34,6 @@ def main(filename="FCIDUMP"):
         # Note that this is python3 format
         # Since we are modifying inplace, want to use .items, rather than setting up a true iterator
         for det_str, det_amp in list(walkers.items()):
-            is_initiator = not sim_params.det_thresh or (det_amp > sim_params.det_thresh)
-            # if det_thresh is 0 or 'falsey', this is an initiator, else it is one only if det_amp > det_thresh
 
             # Convert determinant string into a true list
             det = ast.literal_eval(det_str)
@@ -52,8 +50,8 @@ def main(filename="FCIDUMP"):
             # Stochastically round the walkers, if their amplitude is too low to ensure the walker list remains compact.
             if abs(det_amp) < sim_params.det_thresh:
                 # Stochastically round up to sim_params.det_thresh with prob abs(det_amp)/sim_params.det_thresh, or disregard and skip this determinant
-                if np.random.rand(1)[0] < abs(det_amp)/sim_params.det_thresh:
-                    det_amp = sim_params.det_thresh*np.sign(det_amp)
+                if np.random.rand(1)[0] < abs(det_amp) / sim_params.det_thresh:
+                    det_amp = sim_params.det_thresh * np.sign(det_amp)
                     # Also update it in the main walker list
                     walkers[det_str] = det_amp
                 else:
@@ -78,32 +76,41 @@ def main(filename="FCIDUMP"):
                 spawn_str = repr(spawn_det)
 
                 if abs(p_spawn) > 1.e-12:
-                    if spawn_str in spawned_walkers:
-                        spawned_walkers[spawn_str].append((p_spawn, is_initiator))
+                    if sim_params.init_thresh is None:
+                        # Initiator approximation not is use. Set all spawns to be from initiators
+                        init_flag = True
+                    elif abs(det_amp) > sim_params.init_thresh:
+                        # Parent amplitude above initiator theshold. Set init_flag to true.
+                        init_flag = True
                     else:
-                        spawned_walkers[spawn_str] = [(p_spawn, is_initiator)]
+                        # Parent is not sufficiently weighted to be an initiator. Mark it so it is only kept if spawning to an occupied determinant
+                        init_flag = False
+                    if spawn_str in spawned_walkers:
+                        # If multiple spawning events to the same determinant, always mark the resulting spawned determinant as from an initiator
+                        spawned_walkers[spawn_str][0] += p_spawn
+                        spawned_walkers[spawn_str][1] = True
+                    else:
+                        spawned_walkers[spawn_str] = [p_spawn, init_flag]
 
             # DEATH STEP
             # Remember to now remove the reference energy from the determinant (this was done implicitly in part I)
             h_el_diag = sys_ham.slater_condon(det, det, None, None) - sim_stats.ref_energy
             walkers[det_str] -= sim_params.timestep * (h_el_diag - sim_params.shift) * det_amp
 
-
         # ANNIHILATION. Run through the list of newly spawned walkers, and merge with the main list.
         # However, if we are using the initiator approximation, we should also test whether we want
         # to transfer the walker weight across, or whether we want to abort the spawning attempt.
-        for spawn_str, spawn_amp in spawned_walkers.items():
-            weight_from_all = sum(s[0] for s in spawn_amp)
-            weight_from_inits = sum(s[0] for s in spawn_amp if s[1])
+        for spawn_str, (spawn_amp, init_flag) in spawned_walkers.items():
             if spawn_str in walkers:
-                walkers[spawn_str] += weight_from_all
+                # Merge with walkers already currently residing on this determinant
+                walkers[spawn_str] += spawn_amp
             else:
-                walkers[spawn_str] = weight_from_inits
+                # Add as a new entry in the walker list (if it was marked as coming from an initiator determinant.
+                if init_flag:
+                    walkers[spawn_str] = spawn_amp
 
-
-    # Every sim_params.stats_cycle iterations, readjust shift (if in variable shift mode) and print out statistics.
+        # Every sim_params.stats_cycle iterations, readjust shift (if in variable shift mode) and print out statistics.
         if sim_stats.iter_curr % sim_params.stats_cycle == 0:
-
             # Update the shift, and turn on variable shift mode if enough walkers
             sim_params.update_shift(sim_stats)
             # Update the averaged statistics, and write out
@@ -113,6 +120,6 @@ def main(filename="FCIDUMP"):
     sim_stats.fout.close()
 
 if __name__ == "__main__":
-    main()
+    main("TEST.FCIDUMP")
 
 

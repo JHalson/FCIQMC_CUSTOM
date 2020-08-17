@@ -8,8 +8,8 @@ from Hubbard import Hubbard
 
 def test_pyscf(U=2, norb=4):
     nelec = norb
-    n_alpha = norb // 2
-    n_beta = nelec - n_alpha
+    n_beta = norb // 2
+    n_alpha = nelec - n_beta
 
     # Define 1D Hubbard hamiltonian
     h1 = numpy.zeros((norb,norb))
@@ -19,6 +19,9 @@ def test_pyscf(U=2, norb=4):
     eri = numpy.zeros((norb,norb,norb,norb))
     for i in range(norb):
         eri[i,i,i,i] = U
+
+    from pyscf.tools.fcidump import from_integrals
+    from_integrals('FCIDUMP.PySCF', h1, eri, norb, nelec)
 
     #
     # Generally, direct_spin1.kernel is the FCI object which can handle all generic systems.
@@ -45,8 +48,7 @@ def test_pyscf(U=2, norb=4):
     cisolver.verbose = 5
     e, fcivec = cisolver.kernel(h1, eri, norb, nelec)
     print('FCI Energy is {}'.format(e))
-    from pyscf.tools.fcidump import from_integrals
-    from_integrals('FCIDUMP.PySCF', h1, eri, norb, nelec)
+
 
     # OPTIONAL: Perform a mean-field hartree-fock calculation, by overwriting some internal objects
     mol = gto.M(verbose=3)
@@ -63,9 +65,9 @@ def test_pyscf(U=2, norb=4):
     e = mf.kernel()
     print('FCI Energy is {}'.format(e))
 
-def test_exact_diag(U=2, norb=4):
-    H = Hubbard(nsites=norb, t=1, U=U, nelec=norb)
-    print(H.get_exact_energy()[0][0])
+def test_exact_diag(U=2, norb=4, spin=None):
+    H = Hubbard(nsites=norb, t=1, U=U, nelec=norb, spin=spin)
+    return H.get_exact_energy()[0][0], H.matrix
 
 def test_fciqmc(U=2, norb=4):
     from FCIQMC import main
@@ -84,16 +86,57 @@ def write_fcidump(U, norb, nelec=None, filename="FCIDUMP"):
 
         f.write("0 0 0 0 0\n")
 
-        for i in range(1,norb):
-            f.write("{} {} {} 0 0 \n".format(-1, i, i+1))
-            f.write("{} {} {} 0 0 \n".format(-1, i + 1, i))
         for i in range(1, norb+1):
             f.write("{} {} {} {} {}\n".format(U, i, i, i, i))
+        for i in range(1,norb):
+            f.write("{} {} {} 0 0 \n".format(-1, i + 1, i))
 
+def test_neci(U=2, norb=4):
+    from subprocess import Popen, PIPE
+    write_fcidump(U, norb)
+    Popen("rm FCIMCStats*", cwd="./neci_workdir", shell=True).wait()
+    Popen("sed 's/<nelec>/{}/' neci.inp.template > neci.inp".format(norb), cwd="./neci_workdir", shell=True).wait()
+    resp = Popen(("./neci", "neci.inp"), stdout=PIPE, stderr=PIPE, cwd="./neci_workdir").communicate()[0].decode('UTF-8')
+    for line in resp.split('\n'):
+        if line.strip().startswith("Final energy estimate for state 1:"):
+            return float(line.split(":")[1].strip())
+    return None
+
+def gen_hamiltonian_from_slater_condon(U=2, norb=4):
+    from itertools import combinations, product
+    from det_ops import HAM, calc_excit_mat_parity
+    import numpy as np
+    write_fcidump(U, norb)
+    H = HAM(filename="FCIDUMP", p_single=0.1)
+
+    alpha = [list(k) for k in combinations(list(range(0,H.nelec)), H.nelec//2)]
+    beta = [list(k) for k in combinations(list(range(H.nelec, 2*H.nelec)), H.nelec//2)]
+    dets = [el[0] + el[1] for el in product(alpha, beta, repeat=1)]
+
+    ham = np.zeros((len(dets), len(dets)))
+    for i, e1 in enumerate(dets):
+        for j, e2 in enumerate(dets):
+            ham[i,j] = H.slater_condon(e1, e2, *calc_excit_mat_parity(e1,e2))
+    return ham
+
+import numpy as np
 
 U=2
-norb = 3
+norb = 6
+
+H = gen_hamiltonian_from_slater_condon(U, norb)
+assert(np.allclose(H.T, H))
+print("energy of matrix generated from Slater Condon: {}".format(np.linalg.eigh(H)[0][0]))
+print("")
+
 
 test_pyscf(U=U, norb=norb)
-test_exact_diag(U=U, norb=norb)
+ED_e, ED_H = test_exact_diag(U=U, norb=norb, spin=norb%2)
+
+
+print("Energy from ED: {}".format(ED_e))
+
+e_neci = test_neci(U=U, norb=norb)
+print("Energy from NECI: {}".format(e_neci))
 test_fciqmc(U=U, norb=norb)
+
