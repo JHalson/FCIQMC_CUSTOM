@@ -1,21 +1,22 @@
 import numpy as np
 
+
 class HAM:
-    def __init__(self, filename = 'FCIDUMP', p_single = 0.05):
+    def __init__(self, filename='FCIDUMP', p_single=0.05):
         ''' Define a hamiltonian to sample, as well as its quantum numbers.
         In addition, it defines the probability of generating a single excitation, rather than double
         excitation in the random excitation generator (which is a method of this class).
         Finally, it also defines a reference determinant energy.'''
 
         # All these quantities are defined by the 'read_in_fcidump' method
-        self.nelec = None       # Number of electrons
-        self.ms = None          # 2 x spin-polarization
-        self.n_alpha = None     # Number of alpha electrons
-        self.n_beta = None      # Number of beta electrons
-        self.nbasis = None      # Number of spatial orbitals
+        self.nelec = None  # Number of electrons
+        self.ms = None  # 2 x spin-polarization
+        self.n_alpha = None  # Number of alpha electrons
+        self.n_beta = None  # Number of beta electrons
+        self.nbasis = None  # Number of spatial orbitals
         self.spin_basis = None  # Number of spin orbitals (= 2 x self.nbasis)
 
-        # The one-electron hamiltonian in the spin-orbital basis 
+        # The one-electron hamiltonian in the spin-orbital basis
         self.h1 = None
         # The two-electron hamiltonian in the spin-orbital basis
         # Note that eri[i,j,k,l] = < phi_i(r_1) phi_k(r_2) | 1/r12 | phi_j(r_1) phi_l(r_2) >
@@ -33,7 +34,7 @@ class HAM:
         # Define a reference determinant and reference energy.
         # Ideally, this should be the energy of the lowest-energy determinant in the space.
         # In a HF basis, this will generally be the first occupied orbitals. Assume so.
-        self.ref_det = list(range(self.n_alpha)) + list(range(self.nbasis, self.nbasis+self.n_beta))
+        self.ref_det = list(range(self.n_alpha)) + list(range(self.nbasis, self.nbasis + self.n_beta))
         print('Initial reference determinant defined with occupied orbitals: {}'.format(self.ref_det))
         return
 
@@ -61,7 +62,7 @@ class HAM:
         import re
 
         print('Reading in system from file: {}'.format(filename))
-        assert(os.path.isfile(os.path.join('./', filename)))
+        assert (os.path.isfile(os.path.join('./', filename)))
 
         finp = open(filename, 'r')
         dat = re.split('[=,]', finp.readline())
@@ -86,23 +87,23 @@ class HAM:
 
         isym = [x.split('=')[1] for x in sym if 'ISYM' in x]
         if len(isym) > 0:
-            isym_out = int(isym[0].replace(',','').strip())
+            isym_out = int(isym[0].replace(',', '').strip())
         symorb = ','.join([x for x in sym if 'ISYM' not in x]).split('=')[1]
         orbsym = [int(x.strip()) for x in symorb.replace(',', ' ').split()]
 
         # Read in integrals, but immediately transform them into a spin-orbital basis.
         # We order things with alpha, then beta spins
-        self.spin_basis = 2*self.nbasis
+        self.spin_basis = 2 * self.nbasis
         self.h1 = np.zeros((self.spin_basis, self.spin_basis))
         # Ignore permutational symmetry
         self.h2 = np.zeros((self.spin_basis, self.spin_basis, self.spin_basis, self.spin_basis))
         dat = finp.readline().split()
         while dat:
-            ii, jj, kk, ll = [int(x) for x in dat[1:5]] # Note these are 1-indexed
-            i = ii-1
-            j = jj-1
-            k = kk-1
-            l = ll-1
+            ii, jj, kk, ll = [int(x) for x in dat[1:5]]  # Note these are 1-indexed
+            i = ii - 1
+            j = jj - 1
+            k = kk - 1
+            l = ll - 1
             if kk != 0:
                 # Two electron integral - 8 spatial permutations x 4 spin (=32) allowed permutations!
                 # alpha, alpha, alpha, alpha
@@ -116,41 +117,41 @@ class HAM:
                 self.h2[l, k, j, i] = float(dat[0])
 
                 # beta, beta, beta, beta
-                self.h2[i+self.nbasis, j+self.nbasis, k+self.nbasis, l+self.nbasis] = float(dat[0])
-                self.h2[j+self.nbasis, i+self.nbasis, k+self.nbasis, l+self.nbasis] = float(dat[0])
-                self.h2[i+self.nbasis, j+self.nbasis, l+self.nbasis, k+self.nbasis] = float(dat[0])
-                self.h2[j+self.nbasis, i+self.nbasis, l+self.nbasis, k+self.nbasis] = float(dat[0])
-                self.h2[k+self.nbasis, l+self.nbasis, i+self.nbasis, j+self.nbasis] = float(dat[0])
-                self.h2[l+self.nbasis, k+self.nbasis, i+self.nbasis, j+self.nbasis] = float(dat[0])
-                self.h2[k+self.nbasis, l+self.nbasis, j+self.nbasis, i+self.nbasis] = float(dat[0])
-                self.h2[l+self.nbasis, k+self.nbasis, j+self.nbasis, i+self.nbasis] = float(dat[0])
+                self.h2[i + self.nbasis, j + self.nbasis, k + self.nbasis, l + self.nbasis] = float(dat[0])
+                self.h2[j + self.nbasis, i + self.nbasis, k + self.nbasis, l + self.nbasis] = float(dat[0])
+                self.h2[i + self.nbasis, j + self.nbasis, l + self.nbasis, k + self.nbasis] = float(dat[0])
+                self.h2[j + self.nbasis, i + self.nbasis, l + self.nbasis, k + self.nbasis] = float(dat[0])
+                self.h2[k + self.nbasis, l + self.nbasis, i + self.nbasis, j + self.nbasis] = float(dat[0])
+                self.h2[l + self.nbasis, k + self.nbasis, i + self.nbasis, j + self.nbasis] = float(dat[0])
+                self.h2[k + self.nbasis, l + self.nbasis, j + self.nbasis, i + self.nbasis] = float(dat[0])
+                self.h2[l + self.nbasis, k + self.nbasis, j + self.nbasis, i + self.nbasis] = float(dat[0])
 
                 # alpha, alpha, beta, beta
-                self.h2[i, j, k+self.nbasis, l+self.nbasis] = float(dat[0])
-                self.h2[j, i, k+self.nbasis, l+self.nbasis] = float(dat[0])
-                self.h2[i, j, l+self.nbasis, k+self.nbasis] = float(dat[0])
-                self.h2[j, i, l+self.nbasis, k+self.nbasis] = float(dat[0])
-                self.h2[k, l, i+self.nbasis, j+self.nbasis] = float(dat[0])
-                self.h2[l, k, i+self.nbasis, j+self.nbasis] = float(dat[0])
-                self.h2[k, l, j+self.nbasis, i+self.nbasis] = float(dat[0])
-                self.h2[l, k, j+self.nbasis, i+self.nbasis] = float(dat[0])
+                self.h2[i, j, k + self.nbasis, l + self.nbasis] = float(dat[0])
+                self.h2[j, i, k + self.nbasis, l + self.nbasis] = float(dat[0])
+                self.h2[i, j, l + self.nbasis, k + self.nbasis] = float(dat[0])
+                self.h2[j, i, l + self.nbasis, k + self.nbasis] = float(dat[0])
+                self.h2[k, l, i + self.nbasis, j + self.nbasis] = float(dat[0])
+                self.h2[l, k, i + self.nbasis, j + self.nbasis] = float(dat[0])
+                self.h2[k, l, j + self.nbasis, i + self.nbasis] = float(dat[0])
+                self.h2[l, k, j + self.nbasis, i + self.nbasis] = float(dat[0])
 
                 # beta, beta, alpha, alpha
-                self.h2[i+self.nbasis, j+self.nbasis, k, l] = float(dat[0])
-                self.h2[j+self.nbasis, i+self.nbasis, k, l] = float(dat[0])
-                self.h2[i+self.nbasis, j+self.nbasis, l, k] = float(dat[0])
-                self.h2[j+self.nbasis, i+self.nbasis, l, k] = float(dat[0])
-                self.h2[k+self.nbasis, l+self.nbasis, i, j] = float(dat[0])
-                self.h2[l+self.nbasis, k+self.nbasis, i, j] = float(dat[0])
-                self.h2[k+self.nbasis, l+self.nbasis, j, i] = float(dat[0])
-                self.h2[l+self.nbasis, k+self.nbasis, j, i] = float(dat[0])
+                self.h2[i + self.nbasis, j + self.nbasis, k, l] = float(dat[0])
+                self.h2[j + self.nbasis, i + self.nbasis, k, l] = float(dat[0])
+                self.h2[i + self.nbasis, j + self.nbasis, l, k] = float(dat[0])
+                self.h2[j + self.nbasis, i + self.nbasis, l, k] = float(dat[0])
+                self.h2[k + self.nbasis, l + self.nbasis, i, j] = float(dat[0])
+                self.h2[l + self.nbasis, k + self.nbasis, i, j] = float(dat[0])
+                self.h2[k + self.nbasis, l + self.nbasis, j, i] = float(dat[0])
+                self.h2[l + self.nbasis, k + self.nbasis, j, i] = float(dat[0])
             elif kk == 0:
                 if jj != 0:
                     # One electron term
-                    self.h1[i,j] = float(dat[0])
-                    self.h1[j,i] = float(dat[0])
-                    self.h1[i+self.nbasis, j+self.nbasis] = float(dat[0])
-                    self.h1[j+self.nbasis, i+self.nbasis] = float(dat[0])
+                    self.h1[i, j] = float(dat[0])
+                    self.h1[j, i] = float(dat[0])
+                    self.h1[i + self.nbasis, j + self.nbasis] = float(dat[0])
+                    self.h1[j + self.nbasis, i + self.nbasis] = float(dat[0])
                 else:
                     # Nuclear repulsion term
                     self.nn = float(dat[0])
@@ -170,23 +171,23 @@ class HAM:
                                     for a single excitation, the tuples will just be of length 1)
                                 Note: For a diagonal matrix element (i.e. det == excited_det), the excit_mat should be 'None'.
             parity:         The parity of the excitation
-        Out: 
+        Out:
             The hamiltonian matrix element'''
 
         hel = 0.0
         if excit_mat is None:
             # Diagonal Hamiltonian matrix element
-            assert(det == excited_det)
+            assert (det == excited_det)
 
             # Include nuclear-nuclear repulsion
             hel += self.nn
 
             for i in range(self.nelec):
                 # Sum over all diagonal terms in one-electron operator
-                hel += self.h1[det[i],det[i]]
-                for j in range(i+1, self.nelec):
+                hel += self.h1[det[i], det[i]]
+                for j in range(i + 1, self.nelec):
                     # Run through electron pairs and sum in 'coulomb' and 'exchange' contribution
-                    hel += ( self.h2[det[i],det[i],det[j],det[j]] - self.h2[det[i],det[j],det[j],det[i]] )
+                    hel += (self.h2[det[i], det[i], det[j], det[j]] - self.h2[det[i], det[j], det[j], det[i]])
         elif len(excit_mat[0]) == 1:
             # Single excitation
 
@@ -194,7 +195,8 @@ class HAM:
             hel += self.h1[excit_mat[0][0], excit_mat[1][0]]
             # Two electron part to single excitation
             for i in det:
-                hel += ( self.h2[excit_mat[0][0], excit_mat[1][0], i, i] - self.h2[excit_mat[0][0], i, i, excit_mat[1][0]] )
+                hel += (self.h2[excit_mat[0][0], excit_mat[1][0], i, i] - self.h2[
+                    excit_mat[0][0], i, i, excit_mat[1][0]])
 
             # Multiply by the parity of the excitation
             hel *= parity
@@ -202,8 +204,8 @@ class HAM:
             # Double excitation
 
             # Just a single 'coulomb'-like and 'exchange'-like contribution
-            hel += ( self.h2[excit_mat[0][0], excit_mat[1][0], excit_mat[0][1], excit_mat[1][1]] - \
-                        self.h2[excit_mat[0][0], excit_mat[1][1], excit_mat[0][1], excit_mat[1][0]] )
+            hel += (self.h2[excit_mat[0][0], excit_mat[1][0], excit_mat[0][1], excit_mat[1][1]] - \
+                    self.h2[excit_mat[0][0], excit_mat[1][1], excit_mat[0][1], excit_mat[1][0]])
             # Multiply by the parity of the excitation
             hel *= parity
         return hel
@@ -229,7 +231,7 @@ class HAM:
 
             # Find the overall probability of generating this excitation
             prob = self.p_single / float(self.nelec * (self.spin_basis - self.nelec))
-            excited_det = det[:]    # Make copy
+            excited_det = det[:]  # Make copy
             # Make the replacement in the orbital for the new determinant
             excited_det[i_ind] = unocc_list[a_ind]
 
@@ -237,7 +239,7 @@ class HAM:
             perm = elec_exchange_ops(excited_det, i_ind)
             # This hasn't sorted the excited determinant, so do this now
             excited_det.sort()
-            
+
             # Create a pair of tuples for the annihilated and created orbital
             excit_mat = [(det[i_ind],), (unocc_list[a_ind],)]
 
@@ -247,9 +249,10 @@ class HAM:
             i_ind = tuple(np.random.choice(range(len(det)), 2, replace=False))
             a_ind = tuple(np.random.choice(range(len(unocc_list)), 2, replace=False))
             prob = 4. * (1. - self.p_single) / \
-                float(self.nelec * (self.nelec-1) * (self.spin_basis - self.nelec) * (self.spin_basis - self.nelec - 1))
+                   float(self.nelec * (self.nelec - 1) * (self.spin_basis - self.nelec) * (
+                               self.spin_basis - self.nelec - 1))
             # Replace one electron at a time and calculate permutation for each (which we can do, since we are only interested in odd/even). As long as we reorder after each replacement
-            excited_det = det[:] # Make copy
+            excited_det = det[:]  # Make copy
             excited_det[i_ind[0]] = unocc_list[a_ind[0]]
 
             # Find the parity of the first replacement
@@ -263,24 +266,25 @@ class HAM:
 
             # Find the parity of the second replacement
             perm2 = elec_exchange_ops(excited_det, ind)
-            perm = perm1 + perm2    # Find the total number of permutations
+            perm = perm1 + perm2  # Find the total number of permutations
             # Sort the new determinant for the final time
             excited_det.sort()
 
             # Create a pair of tuples for the annihilated and created orbitals
             excit_mat = [(det[i_ind[0]], det[i_ind[1]]), (unocc_list[a_ind[0]], unocc_list[a_ind[1]])]
 
-        return excited_det, excit_mat, (-1)**perm, prob
+        return excited_det, excit_mat, (-1) ** perm, prob
+
 
 def elec_exchange_ops(det, ind):
     ''' Given a determinant defined by a list of occupied orbitals
     which is ordered apart from one element (ind), find the number of
-    local (nearest neighbour) electron exchanges required to order the 
+    local (nearest neighbour) electron exchanges required to order the
     list of occupied orbitals.
-    
+
     We can assume that there are no repeated elements of the list, and that
     the list is ordered apart from one element on entry.
-    
+
     Return: The number of pairwise permutations required.'''
 
     # A better way to do it!
@@ -293,33 +297,33 @@ def elec_exchange_ops(det, ind):
     else:
         # A brute force way to do it!
 
-        n = len(det)    # The number of electrons
+        n = len(det)  # The number of electrons
         perm = 0
 
-        # Do we want to do pairwise permutations going up (i.e. element is too 
-        # small for its position), or down (i.e. element is too large for 
+        # Do we want to do pairwise permutations going up (i.e. element is too
+        # small for its position), or down (i.e. element is too large for
         # its position) the list.
         search_up = True
         if ind == 0:
             # The replaced element is at the beginning of the list
             search_up = True
-        elif ind == n-1:
+        elif ind == n - 1:
             # The replaced element is at the end of the list
             search_up = False
-        elif det[ind-1] > det[ind]:
+        elif det[ind - 1] > det[ind]:
             # The replaced element is smaller than the preceeding element.
             # We therefore have to search down (otherwise, up)
             search_up = False
 
         if search_up:
-            for x in range(ind+1,n):
+            for x in range(ind + 1, n):
                 if det[ind] < det[x]:
                     # We have gone through enough pair-wise permutations
                     # and have now found its rightful spot!
                     break
                 perm += 1
         else:
-            for x in range(ind-1,-1,-1):
+            for x in range(ind - 1, -1, -1):
                 if det[ind] > det[x]:
                     # We have gone through enough pair-wise permutations
                     # and have now found its rightful spot!
@@ -327,22 +331,22 @@ def elec_exchange_ops(det, ind):
                 perm += 1
     return perm
 
+
 def calc_excit_mat_parity(det, excited_det):
-    ''' Given two determinants (excitations of each other), calculate and return 
-    the excitation matrix (see the definition in the slater-condon function), 
+    ''' Given two determinants (excitations of each other), calculate and return
+    the excitation matrix (see the definition in the slater-condon function),
     and parity of the excitation'''
 
     # First, we have to compute the indices which are different in the two orbital lists.
     excit_mat = []
-    excit_mat.append(tuple(set(det) - set(excited_det)))    # These are the elements in det which are not in excited_det
-    excit_mat.append(tuple(set(excited_det) - set(det)))    # These are the elements in excited_det which are not in det
-    assert(len(excit_mat[0]) == len(excit_mat[1]))
+    excit_mat.append(tuple(set(det) - set(excited_det)))  # These are the elements in det which are not in excited_det
+    excit_mat.append(tuple(set(excited_det) - set(det)))  # These are the elements in excited_det which are not in det
+    assert (len(excit_mat[0]) == len(excit_mat[1]))
 
     # Now find the parity
     new_det = det[:]
     perm = 0
     for elec in range(len(excit_mat[0])):
-
         # Find the index of the electron we want to remove
         ind_elec = new_det.index(excit_mat[0][elec])
         # Substitute the new electron
@@ -351,16 +355,19 @@ def calc_excit_mat_parity(det, excited_det):
         perm += elec_exchange_ops(new_det, ind_elec)
         # Reorder the determinant
         new_det.sort()
-    assert(new_det == excited_det)
+    assert (new_det == excited_det)
 
-    return excit_mat, (-1)**perm
+    if not any(excit_mat): excit_mat = None # set diagonal excit_mat to None
+
+    return excit_mat, (-1) ** perm
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    
+
     # Test for hamiltonian matrix elements
-    # Read in System 
-    sys_ham = HAM(filename='FCIDUMP.8H')
+    # Read in System
+    sys_ham = HAM(filename='FCIDUMP')
     print('Running unit tests for Slater-Condon rules...')
     # Define set of excitations to compute the hamiltonian matrix element
     test_ham_els = [(sys_ham.ref_det, sys_ham.ref_det, None, None),
@@ -386,19 +393,19 @@ if __name__ == '__main__':
             print('Expected hamiltonian matrix element: {}'.format(correct_hels[i]))
             print('Returned hamiltonian matrix element: {}'.format(hel))
 
-    # elec_exchange_ops unit tests 
+    # elec_exchange_ops unit tests
     print('Running unit tests for elec_exchange_ops function...')
     # A list of test determinants and exchanged orbital indices.
-    test_dets = [([0,1,2,3,4,5], 0), 
-                 ([0,1,2,3,4,5], 3),
-                 ([0,1,2,3,4,5], 5),
-                 ([3,6,14,8,11], 2),
-                 ([14,3,6,8,11], 0),
-                 ([0,8,3,6,11],  1),
-                 ([1,3,12,0],    3),
-                 ([1,3,0,12],    2),
-                 ([1,3,2,4],     2),
-                 ([1,3,2,4],     1)]
+    test_dets = [([0, 1, 2, 3, 4, 5], 0),
+                 ([0, 1, 2, 3, 4, 5], 3),
+                 ([0, 1, 2, 3, 4, 5], 5),
+                 ([3, 6, 14, 8, 11], 2),
+                 ([14, 3, 6, 8, 11], 0),
+                 ([0, 8, 3, 6, 11], 1),
+                 ([1, 3, 12, 0], 3),
+                 ([1, 3, 0, 12], 2),
+                 ([1, 3, 2, 4], 2),
+                 ([1, 3, 2, 4], 1)]
     correct_perms = [0, 0, 0, 2, 4, 2, 3, 2, 1, 1]
     for i, (det, ind) in enumerate(test_dets):
         perm = elec_exchange_ops(det, ind)
@@ -406,14 +413,14 @@ if __name__ == '__main__':
             print('Permutation correct! Perm = {}'.format(perm))
         else:
             print('*Permutation incorrect*!')
-            print('True permutation number for determinant {} is {}'.format(str(det),correct_perms[i]))
+            print('True permutation number for determinant {} is {}'.format(str(det), correct_perms[i]))
             print('Your function returns instead: {}'.format(perm))
 
     # excit_gen unit tests
-    # Use random initial determinant value 
+    # Use random initial determinant value
     det_root = [0, 1, 4, 6, 8, 12, 13, 15]
     print('Running unit tests for excitation generation function, from determinant {}...'.format(str(det_root)))
-    sys_ham = HAM(filename='FCIDUMP.8H',p_single=0.1)
+    sys_ham = HAM(filename='FCIDUMP', p_single=0.1)
     n_att = 20000
     excited_dets = {}
     for attempt in range(n_att):
@@ -423,16 +430,16 @@ if __name__ == '__main__':
         excited_det, excit_mat, parity, prob = sys_ham.excit_gen(det_root)
 
         # Check that the returned determinant is the same length as the original determinant
-        assert(len(det_root) == len(excited_det))
+        assert (len(det_root) == len(excited_det))
 
         # Check that returned determinant is an ordered list
-        assert(all(excited_det[i] <= excited_det[i+1] for i in range(len(excited_det)-1)))
+        assert (all(excited_det[i] <= excited_det[i + 1] for i in range(len(excited_det) - 1)))
 
         # Store the excited determinant
         if repr(excited_det) in excited_dets:
-            excited_dets[repr(excited_det)] += 1./(prob*n_att)
+            excited_dets[repr(excited_det)] += 1. / (prob * n_att)
         else:
-            excited_dets[repr(excited_det)] = 1./(prob*n_att)
+            excited_dets[repr(excited_det)] = 1. / (prob * n_att)
     # Create list of n_gen / (N_att x prob) for all excited determinants
     print('Total number of excitations generated: {}'.format(len(excited_dets)))
     probs = []
@@ -440,14 +447,14 @@ if __name__ == '__main__':
         print('Excitation generated: {}'.format(excited_det))
         probs.append(prob_sum)
     plt.plot(range(len(probs)), probs, label='normalized generation frequency')
-    plt.axhline(1.0,label='Exact distribution desired')
+    plt.axhline(1.0, label='Exact distribution desired')
     plt.legend()
     plt.show()
 
     # Test example for parity
     det_root = [0, 1, 4, 6, 8, 12, 13, 15]
     print('Running unit tests for calc_excit_mat_parity function, from determinant {}...'.format(str(det_root)))
-    sys_ham = HAM(filename='FCIDUMP.8H',p_single=0.1)
+    sys_ham = HAM(filename='FCIDUMP', p_single=0.1)
     # Generate a number of excitations
     for i in range(25):
         # Generate a random excitation from this root determinant
@@ -460,14 +467,23 @@ if __name__ == '__main__':
             print('Excitation matrix and parity agree between the two functions for attempt {}'.format(i))
         # Note that the parity should change if we swap the indices of either the excited from or excited to orbitals
         elif parity == -parity_2 and [tuple(reversed(excit_mat[0])), excit_mat[1]] == excit_mat_2:
-            print('Excitation matrix and parity agree between the two functions for attempt {} (though the "from" indices are swapped)'.format(i))
+            print(
+                'Excitation matrix and parity agree between the two functions for attempt {} (though the "from" indices are swapped)'.format(
+                    i))
         elif parity == -parity_2 and [excit_mat[0], tuple(reversed(excit_mat[1]))] == excit_mat_2:
-            print('Excitation matrix and parity agree between the two functions for attempt {} (though the "to" indices are swapped)'.format(i))
+            print(
+                'Excitation matrix and parity agree between the two functions for attempt {} (though the "to" indices are swapped)'.format(
+                    i))
         elif parity == parity_2 and [tuple(reversed(excit_mat[0])), tuple(reversed(excit_mat[1]))] == excit_mat_2:
-            print('Excitation matrix and parity agree between the two functions for attempt {} (though both sets of indices are swapped)'.format(i))
+            print(
+                'Excitation matrix and parity agree between the two functions for attempt {} (though both sets of indices are swapped)'.format(
+                    i))
         else:
             print('Error in getting agreement for the excitation matrix and parity...')
             print('Root determinant: {}'.format(str(det_root)))
             print('Excited determinant: {}'.format(str(excited_det)))
             print('excit_gen parity = {}. calc_excit_mat_parity parity = {}'.format(parity, parity_2))
-            print('excit_gen excitation matrix = {}. calc_excit_mat_parity excitation matrix = {}'.format(excit_mat, excit_mat_2))
+            print('excit_gen excitation matrix = {}. calc_excit_mat_parity excitation matrix = {}'.format(excit_mat,
+                                                                                                          excit_mat_2))
+
+

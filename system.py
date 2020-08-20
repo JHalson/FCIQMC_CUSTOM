@@ -31,7 +31,7 @@ class PARAMS:
         if self.shift < 0.0:
             print("Warning: Initial shift is < 0. Walkers growth may be negative?")
         # Once in variable shift, how damped do we want the fluctuations to be?
-        self.shift_damp = 0.1
+        self.shift_damp = shift_damp
 
         # The timestep for the propagation
         self.timestep = timestep

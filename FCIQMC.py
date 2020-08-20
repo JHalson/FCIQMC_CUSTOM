@@ -12,8 +12,8 @@ def main(filename="FCIDUMP"):
 
     # Setup simulation parameters. See system.py for details.
     sim_params = system.PARAMS(totwalkers=400 , initwalkers=50, init_shift=0.1,
-            shift_damp=0.025, timestep=2.e-2, det_thresh=0.75, eqm_iters=500,
-            max_iter=10000, stats_cycle=5, seed=7, init_thresh=2.0)
+            shift_damp=0.5, timestep=2.e-2, det_thresh=0.75, eqm_iters=500,
+            max_iter=1000, stats_cycle=5, seed=7, init_thresh=2.0)
     # Setup a statistics object, which accumulates various run-time variables.
     # See system.py for more details.
     sim_stats = system.STATS(sim_params, filename='fciqmc_stats', ref_energy=ref_energy)
@@ -115,9 +115,33 @@ def main(filename="FCIDUMP"):
             sim_params.update_shift(sim_stats)
             # Update the averaged statistics, and write out
             sim_stats.update_stats(sim_params)
+            # subroutine for changing reference if necessary
+            #change_ref(walkers, sys_ham, sim_stats)
 
     # Close the output file
     sim_stats.fout.close()
+
+def change_ref(walkers=None, sys_ham=None, sim_stats=None, det=None, tol=0.5):
+    ref_changed = False
+    if det is not None:
+        # change to the given reference
+        new_ref = repr(det)
+        ref_changed = True
+    else:
+        # change to the next most occupied determinant
+        new_ref = repr(sys_ham.ref_det)
+        for label, amp in walkers.items():
+            if abs(amp / walkers[new_ref]) > (1 + tol):
+                new_ref = label
+                ref_changed = True
+                tol = 0
+    if ref_changed:
+        print('changing reference from {} to {}'.format(sys_ham.ref_det, new_ref))
+        sys_ham.ref_det = ast.literal_eval(new_ref)
+        ref_energy = sys_ham.slater_condon(sys_ham.ref_det, sys_ham.ref_det, None, None)
+        sim_stats.ref_energy = ref_energy
+    return ref_changed
+
 
 if __name__ == "__main__":
     main("TEST.FCIDUMP")
