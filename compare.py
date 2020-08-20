@@ -70,9 +70,10 @@ def test_exact_diag(U=2, norb=4, spin=None):
     return H.get_exact_energy()[0][0], H.matrix
 
 def test_fciqmc(U=2, norb=4):
-    from FCIQMC import main
+    from FCIQMC import FCIQMC
     write_fcidump(U, norb)
-    main()
+    F = FCIQMC("FCIDUMP", p_single = 1)
+    F.kernel()
 
 def write_fcidump(U, norb, nelec=None, filename="FCIDUMP"):
     if not nelec: nelec = norb
