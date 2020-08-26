@@ -6,19 +6,14 @@ import det_ops
 
 class FCIQMC:
     def __init__(self, ham_filename, **kwargs):
-        p_single = kwargs.pop('p_single') if 'p_single' in kwargs else 0.1
+        ham_opts, param_opts, misc_opts = self.set_defaults(kwargs)
 
         # Read in the Hamiltonian integrals from file
-        self.sys_ham = det_ops.HAM(filename=ham_filename, p_single=p_single)
+        self.sys_ham = det_ops.HAM(filename=ham_filename, **ham_opts)
         ref_energy = self.sys_ham.slater_condon(self.sys_ham.ref_det, self.sys_ham.ref_det, None, None)
 
         # Setup simulation parameters. See system.py for details.
-        params = dict(totwalkers=1000, initwalkers=50, init_shift=0.1,
-                                shift_damp=0.5, timestep=2.e-2, det_thresh=0.75, eqm_iters=500,
-                                max_iter=2000, stats_cycle=5, seed=7, init_thresh=2.0)
-        params.update(kwargs)
-
-        self.sim_params = system.PARAMS(**params)
+        self.sim_params = system.PARAMS(**param_opts)
 
         # Setup a statistics object, which accumulates various run-time variables.
         # See system.py for more details.
@@ -28,6 +23,25 @@ class FCIQMC:
         # Label determinants by the string representation of the list of occupied orbitals
         self.walkers = {repr(self.sys_ham.ref_det): self.sim_params.nwalk_init}
         self.sim_stats.nw = self.sim_params.nwalk_init
+
+    def set_defaults(self, kwargs_dict):
+        p_single = kwargs_dict.pop('p_single') if 'p_single' in kwargs_dict else 0.1
+        self.use_hubbard = kwargs_dict.pop('use_hubbard') if 'use_hubbard' in kwargs_dict else False
+        if self.use_hubbard:
+            p_single = 1
+            kwargs_dict['init_thresh'] = None
+
+        ham_opts = dict(p_single=p_single)
+
+        # arguments for the PARAMS object
+        param_opts = dict(totwalkers=1000, initwalkers=50, init_shift=0.1,
+                        shift_damp=0.5, timestep=2.e-2, det_thresh=0.75, eqm_iters=500,
+                        max_iter=2000, stats_cycle=5, seed=7, init_thresh=2.0)
+        param_opts.update(kwargs_dict)
+
+        misc_opts = dict()
+
+        return ham_opts, param_opts, misc_opts
 
 
     def kernel(self):
@@ -111,6 +125,9 @@ class FCIQMC:
             # to transfer the walker weight across, or whether we want to abort the spawning attempt.
             for spawn_str, (spawn_amp, init_flag) in spawned_walkers.items():
                 if spawn_str in self.walkers:
+                    if self.use_hubbard:
+                        # 1D Hubbard should not have annihilations between opposite signed walkers
+                        assert np.sign(self.walkers[spawn_str]) == np.sign(spawn_amp)
                     # Merge with walkers already currently residing on this determinant
                     self.walkers[spawn_str] += spawn_amp
                 else:

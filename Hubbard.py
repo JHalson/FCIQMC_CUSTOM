@@ -10,19 +10,26 @@ class Hubbard:
         self.t = t
         self.U = U
         self._matrix = None
-        self.exclude_middle = self.make_exclude_middle()
+        self.make_special_integers()
         self.index_table = self.make_index_table()
         self.size = len(self.index_table)
         self.matrix = lambda: self.build_matrix()
         self.check_sanity()
 
-    def make_exclude_middle(self):
-        # creates a number that on bitwise "and" will deselect the middle two bits, for use with the
-        # matrix elements xor algorithm to ensure the 'swapped pair' is not the middle two.
-        selection = "1" * (self.nelec - 1)
-        selection = selection + "00" + selection
-        selection = int(selection, 2)
-        return selection
+    def make_special_integers(self):
+        # function to make integers for bit operations during matrix element evaluation
+
+        # creates a number that on bitwise "and" will deselect the middle two bits
+        # to ensure the 'swapped pair' is not the middle two.
+        self.exclude_middle = int("1" * (self.nsites - 1) + "00" + "1" * (self.nsites - 1), 2)
+
+        self.select_beta = int("1"*self.nsites,2)
+        self.select_alpha = int("1"* self.nsites + "0"*self.nsites, 2)
+
+        # number to allow for periodic boundary conditions
+        self.periodic_select = int(("1" + "0"*(self.nsites - 2) + "1"), 2)
+
+
 
     def check_sanity(self):
         if self.nelec:
@@ -95,6 +102,14 @@ class Hubbard:
                     # make sure it's not the middle indices that got swapped
                     # since those don't indicate adjacent sites, but different spins on the first and last site
                     return -self.t
+            if self.periodic:
+                # final check to allow periodic boundary conditions
+                alpha_hops = (xor & self.select_alpha) >> self.nsites
+                beta_hops = xor & self.select_beta
+
+                if ( beta_hops == self.periodic_select) and alpha_hops == 0 or \
+                        (alpha_hops == self.periodic_select) and beta_hops == 0:
+                    return -self.t
         return 0
 
 
@@ -122,7 +137,10 @@ class Hubbard:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    H = Hubbard(nsites=4, t=1, U=2, nelec=4)
+    periodic=False
+
+    H = Hubbard(nsites=4, t=1, U=2, nelec=4, periodic=periodic)
+
     assert H.calc_matrix_element(0b10100011, 0b01100011) == -1
     assert H.calc_matrix_element(0b11001010, 0b11001001) == -1
     assert H.calc_matrix_element(0b10011010, 0b10010110) == -1
@@ -133,6 +151,8 @@ if __name__ == "__main__":
     assert H.calc_matrix_element(0b10010110, 0b10011001) == 0
     assert H.calc_matrix_element(0b10001000, 0b10001001) == 0
     assert H.calc_matrix_element(0b11110110, 0b11110110) == 4
+    assert H.calc_matrix_element(0b10101010, 0b00110011) == 0
+    assert H.calc_matrix_element(0b10101010, 0b00111010) == -int(periodic)
 
     t=1
     nsites=2
