@@ -146,6 +146,7 @@ class FCIQMC:
 
         # Close the output file
         self.sim_stats.fout.close()
+        return self
 
     def change_ref(self, det=None, tol=0.5):
         ref_changed = False
@@ -167,6 +168,19 @@ class FCIQMC:
             ref_energy = self.sys_ham.slater_condon(self.sys_ham.ref_det, self.sys_ham.ref_det, None, None)
             self.sim_stats.ref_energy = ref_energy
         return ref_changed
+
+    def get_stats(self, use_shift=False):
+        with open(self.sim_stats.filename) as f:
+            data = np.genfromtxt(f, usecols=(1, 4, 5), missing_values="n/a", filling_values=np.nan, comments='#')
+            shift_e_av = np.mean(data[:, 0])
+            shift_e_er = np.std(data[:, 0])
+            ref_e_av = np.mean(data[-1, 1])
+            ref_e_er = np.mean(data[-1, 2])
+            if use_shift:
+                return shift_e_av, shift_e_er
+            else:
+                return ref_e_av, ref_e_er
+
 
 
 if __name__ == "__main__":

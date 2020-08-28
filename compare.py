@@ -69,11 +69,15 @@ def test_exact_diag(U=2, norb=4, spin=None, periodic=False):
     H = Hubbard(nsites=norb, t=1, U=U, nelec=norb, spin=spin, periodic=periodic)
     return H.get_exact_energy()[0][0], H.matrix
 
-def test_fciqmc(U=2, norb=4, periodic=False):
+def test_fciqmc(U=2, norb=4, periodic=False, **kwargs):
     from FCIQMC import FCIQMC
     write_fcidump(U, norb, periodic=periodic)
-    F = FCIQMC("FCIDUMP", use_hubbard=True)
-    F.kernel()
+    F = FCIQMC("FCIDUMP", use_hubbard=True, **kwargs).kernel()
+    shift_e_av, shift_e_er = F.get_stats(use_shift=True)
+    ref_e_av, ref_e_er = F.get_stats(use_shift=False)
+    print('shift energy: {} +/- {}\nreference energy: {} +/- {}'.format(
+        shift_e_av, shift_e_er, ref_e_av, ref_e_er
+    ))
 
 def write_fcidump(U, norb, nelec=None, filename="FCIDUMP", periodic=False):
     if not nelec: nelec = norb
@@ -126,25 +130,24 @@ def gen_hamiltonian_from_slater_condon(U=2, norb=4, periodic=False):
             ham[i,j] = H.slater_condon(e1, e2, *calc_excit_mat_parity(e1,e2))
     return ham
 
+if __name__ == "__main__":
+    U=2
+    norb = 6
+    periodic = True
 
-U=2
-norb = 6
-periodic = True
-
-H = gen_hamiltonian_from_slater_condon(U, norb, periodic=periodic)
-assert np.allclose(H.T, H)
-print("energy of matrix generated from Slater Condon: {}".format(np.linalg.eigh(H)[0][0]))
-print("")
-
-
-test_pyscf(U=U, norb=norb, periodic=periodic)
-ED_e, ED_H = test_exact_diag(U=U, norb=norb, spin=norb%2, periodic=periodic)
+    H = gen_hamiltonian_from_slater_condon(U, norb, periodic=periodic)
+    assert np.allclose(H.T, H)
+    print("energy of matrix generated from Slater Condon: {}".format(np.linalg.eigh(H)[0][0]))
+    print("")
 
 
-print("Energy from ED: {}".format(ED_e))
+    test_pyscf(U=U, norb=norb, periodic=periodic)
+    ED_e, ED_H = test_exact_diag(U=U, norb=norb, spin=norb%2, periodic=periodic)
 
-e_neci = test_neci(U=U, norb=norb, periodic=periodic)
-print("Energy from NECI: {}".format(e_neci))
 
-test_fciqmc(U=U, norb=norb, periodic=periodic)
+    print("Energy from ED: {}".format(ED_e))
 
+    test_fciqmc(U=U, norb=norb, periodic=periodic)
+
+    e_neci = test_neci(U=U, norb=norb, periodic=periodic)
+    print("Energy from NECI: {}".format(e_neci))

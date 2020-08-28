@@ -104,7 +104,8 @@ class STATS:
         self.accum_en_denom = []
 
         # Open a file to output the statistics, and write out a header
-        self.fout = open(filename,'w')
+        self.filename = filename
+        self.fout = open(self.filename,'w')
         self.fout.write('# 1.Iter    2.Shift   3.Walkers   4.Cycle_energy   5.Av.Energy  6.Error  7.#Occ_dets  8.Ref_weight\n')
         print('Iter    Shift   Walkers   Cycle_energy   Av.Energy  Error  #Occ_dets  Ref_weight')
 
